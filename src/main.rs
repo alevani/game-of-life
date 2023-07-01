@@ -134,6 +134,7 @@ impl Grid {
 fn main() -> Result<(), Error> {
     env_logger::init();
     let event_loop = EventLoop::new();
+    let mut input = WinitInputHelper::new();
 
     // Creates the window that holds the game
     let window = {
@@ -168,8 +169,9 @@ fn main() -> Result<(), Error> {
             pixels.render().unwrap(); // todo handle error
         }
 
-        
-        grid.update_cells();
-        window.request_redraw();
+        if input.update(&event) {
+            grid.update_cells();
+            window.request_redraw();
+        }
     });
 }
