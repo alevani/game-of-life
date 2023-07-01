@@ -6,6 +6,55 @@ const WIDTH: i32 = 400;
 const HEIGHT: i32 = 300;
 const SCALE_FACTOR: f64 = 3.0;
 
+fn main() -> Result<(), Error> {
+    env_logger::init();
+    let event_loop = EventLoop::new();
+    let mut input = WinitInputHelper::new();
+
+    // Creates the window that holds the game
+    let window = {
+        let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
+        let scaled_size =
+            LogicalSize::new(WIDTH as f64 * SCALE_FACTOR, HEIGHT as f64 * SCALE_FACTOR);
+
+        WindowBuilder::new()
+            .with_title("Conway's Game of Life")
+            .with_inner_size(scaled_size)
+            .with_min_inner_size(size)
+            .build(&event_loop)
+            .unwrap()
+    };
+
+    // A 2D pixels buffer
+    let mut pixels = {
+        let window_size = window.inner_size();
+        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
+        Pixels::new(WIDTH as u32, HEIGHT as u32, surface_texture)?
+    };
+
+    // Create a grid full of ded cells
+    let mut grid = Grid::get_randomized_grid();
+
+    for _ in 0..3 {
+        grid.update_cells();
+    }
+
+    event_loop.run(move |event, _, _| {
+        if let Event::RedrawRequested(_) = event {
+            let frame = pixels.frame_mut();
+            grid.draw_cell(frame);
+
+            // Draw it to the `SurfaceTexture`
+            pixels.render().unwrap(); // todo handle error
+        }
+
+        if input.update(&event) {
+            grid.update_cells();
+            window.request_redraw();
+        }
+    });
+}
+
 #[derive(Clone, Debug)]
 struct Cell {
     pub is_alive: bool,
@@ -129,47 +178,3 @@ impl Grid {
     }
 }
 
-fn main() -> Result<(), Error> {
-    env_logger::init();
-    let event_loop = EventLoop::new();
-    let mut input = WinitInputHelper::new();
-
-    // Creates the window that holds the game
-    let window = {
-        let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
-        let scaled_size =
-            LogicalSize::new(WIDTH as f64 * SCALE_FACTOR, HEIGHT as f64 * SCALE_FACTOR);
-
-        WindowBuilder::new()
-            .with_title("Conway's Game of Life")
-            .with_inner_size(scaled_size)
-            .with_min_inner_size(size)
-            .build(&event_loop)
-            .unwrap()
-    };
-
-    // A 2D pixels buffer
-    let mut pixels = {
-        let window_size = window.inner_size();
-        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        Pixels::new(WIDTH as u32, HEIGHT as u32, surface_texture)?
-    };
-
-    // Create a grid full of ded cells
-    let mut grid = Grid::get_randomized_grid();
-
-    event_loop.run(move |event, _, _| {
-        if let Event::RedrawRequested(_) = event {
-            let frame = pixels.frame_mut();
-            grid.draw_cell(frame);
-
-            // Draw it to the `SurfaceTexture`
-            pixels.render().unwrap(); // todo handle error
-        }
-
-        if input.update(&event) {
-            grid.update_cells();
-            window.request_redraw();
-        }
-    });
-}
