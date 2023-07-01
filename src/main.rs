@@ -1,5 +1,5 @@
-use pixels::{wgpu::Color, Error, Pixels, SurfaceTexture};
-use winit::{dpi::LogicalSize, event_loop::EventLoop, window::WindowBuilder, event::Event};
+use pixels::{Error, Pixels, SurfaceTexture};
+use winit::{dpi::LogicalSize, event::Event, event_loop::EventLoop, window::WindowBuilder};
 use winit_input_helper::WinitInputHelper;
 
 const WIDTH: i32 = 400;
@@ -20,26 +20,25 @@ impl Cell {
         }
     }
 
-    fn process_next_state(&self, neighbours: [bool; 8]) -> Self {
-        let n_count = neighbours.into_iter().filter(|b| *b).count();
+    fn process_next_state(mut self, neighbours: i32) -> Self {
         let is_alive_next = match self.is_alive {
             // If the cell is alive, then it stays alive if it has either 2 or 3 live neighbors
-            true => (2..=3).contains(&n_count),
+            true => (2..=3).contains(&neighbours),
 
             // If the cell is dead, then it springs to life only in the case that it has 3 live neighbors
-            false => n_count == 3,
+            false => neighbours == 3,
         };
 
-        Self {
-            is_alive: is_alive_next,
-            // if the cell is alive, its heat is 255,
-            // otherwise it decays from 1
-            heat: if is_alive_next {
-                255
-            } else {
-                self.heat.saturating_sub(1)
-            }
-        }
+        self.is_alive = is_alive_next;
+        // if the cell is alive, its heat is 255,
+        // otherwise it decays from 1
+        self.heat = if is_alive_next {
+            255
+        } else {
+            self.heat.saturating_sub(1)
+        };
+
+        self
     }
 }
 
@@ -84,46 +83,45 @@ impl Grid {
         for x in 0..WIDTH {
             for y in 0..HEIGHT {
                 let id = x + y * WIDTH;
-                let cell = &self.cells[id as usize];
-
+                
                 // calculate neighbours of that cell
-                let neighbours_cell: [bool; 8] = [
+                let neighbours_cell_count: i32 =
                     // From top-left to bottom-right
                     self.cells
                         .get((id - WIDTH - 1) as usize)
                         .map(|c| c.is_alive)
-                        .unwrap_or(false),
+                        .unwrap_or(false) as i32 +
                     self.cells
                         .get((id - WIDTH) as usize)
                         .map(|c| c.is_alive)
-                        .unwrap_or(false),
+                        .unwrap_or(false) as i32 +
                     self.cells
                         .get((id - WIDTH + 1) as usize)
                         .map(|c| c.is_alive)
-                        .unwrap_or(false),
+                        .unwrap_or(false) as i32 +
                     self.cells
                         .get((id - 1) as usize)
                         .map(|c| c.is_alive)
-                        .unwrap_or(false),
+                        .unwrap_or(false) as i32 +
                     self.cells
                         .get((id + 1) as usize)
                         .map(|c| c.is_alive)
-                        .unwrap_or(false),
+                        .unwrap_or(false) as i32 +
                     self.cells
                         .get((id + WIDTH - 1) as usize)
                         .map(|c| c.is_alive)
-                        .unwrap_or(false),
+                        .unwrap_or(false) as i32 +
                     self.cells
                         .get((id + WIDTH) as usize)
                         .map(|c| c.is_alive)
-                        .unwrap_or(false),
+                        .unwrap_or(false) as i32 +
                     self.cells
                         .get((id + WIDTH + 1) as usize)
                         .map(|c| c.is_alive)
-                        .unwrap_or(false),
-                ];
+                        .unwrap_or(false) as i32
+                ;
 
-                let next_state = cell.process_next_state(neighbours_cell);
+                let next_state = self.cells[id as usize].clone().process_next_state(neighbours_cell_count);
                 self.next_step_cells[id as usize] = next_state;
             }
         }
@@ -164,7 +162,7 @@ fn main() -> Result<(), Error> {
         if let Event::RedrawRequested(_) = event {
             let frame = pixels.frame_mut();
             grid.draw_cell(frame);
-            
+
             // Draw it to the `SurfaceTexture`
             pixels.render().unwrap(); // todo handle error
         }
