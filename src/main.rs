@@ -1,4 +1,4 @@
-use pixels::{Error, Pixels, SurfaceTexture, wgpu::Color};
+use pixels::{wgpu::Color, Error, Pixels, SurfaceTexture};
 use winit::{dpi::LogicalSize, event_loop::EventLoop, window::WindowBuilder};
 use winit_input_helper::WinitInputHelper;
 
@@ -11,24 +11,26 @@ struct Cell {
 }
 
 impl Cell {
-    fn toggle_state(&mut self) {
-        self.is_alive = !self.is_alive;
-    }
-
     fn set_is_alive(&mut self, is_alive: bool) {
         self.is_alive = is_alive;
     }
 
-    fn process_next_state(&mut self, neighbours: Vec<bool>) {
+    fn dead_cell() -> Cell {
+        Cell {
+            is_alive: false
+        }
+    }
+
+    fn process_next_state(&mut self, neighbours: [bool; 8]) {
         let n_count = neighbours.into_iter().filter(|b| *b).count();
         let is_alive_next = match self.is_alive {
             // If the cell is alive, then it stays alive if it has either 2 or 3 live neighbors
             true => (2..=3).contains(&n_count),
 
             // If the cell is dead, then it springs to life only in the case that it has 3 live neighbors
-            false => n_count == 3,   
+            false => n_count == 3,
         };
-        
+
         self.set_is_alive(is_alive_next);
     }
 }
@@ -40,14 +42,14 @@ struct Grid {
 impl Grid {
     fn get_randomized_grid() -> Grid {
         let mut rng: randomize::PCG32 = (1_u64, 1_u64).into();
-        
-        let cells: Vec<Cell> = (0..(HEIGHT as usize * WIDTH as usize)).map(|_| Cell {
-            is_alive: randomize::f32_half_open_right(rng.next_u32()) > 0.9,
-        }).collect();
-        
-        Grid {
-            cells,
-        }
+
+        let cells: Vec<Cell> = (0..(HEIGHT as usize * WIDTH as usize))
+            .map(|_| Cell {
+                is_alive: randomize::f32_half_open_right(rng.next_u32()) > 0.9,
+            })
+            .collect();
+
+        Grid { cells }
     }
 
     fn draw_cell(&mut self, frame: &mut [u8]) {
@@ -57,15 +59,54 @@ impl Grid {
             } else {
                 [0, 0, 0, 0] // Black
             };
-            
+
             pixel.copy_from_slice(&color);
         }
     }
 
+    // X 123456
+    // 1 XXXXXX
+    // 2 XXXXOX
+    // 3 XXXXXX
+    //XXXXXX XXXXOX XXXXXX
     fn update_cells(&mut self) {
-        self.cells.iter_mut().for_each(|c| {
-            c.process_next_state(neighbours)
-        })
+        let old_state = self.cells;
+
+        for x in 0..HEIGHT {
+            for y in 0..WIDTH {
+                // cell is in position (x + 1) * (y + 1) + 1
+                let id = (x + 1) * (y + 1) + 1;
+                let cell = self.cells[id as usize];
+
+                // calculate neighbours of that cell
+                let neighbours_cell: [bool; 8] = [
+                    // From top-left to bottom-right
+                    self.cells.get((id - WIDTH - 1) as usize).unwrap_or(&Cell::dead_cell()).is_alive,
+
+                    self.cells.get((id - WIDTH) as usize).unwrap_or(&Cell::dead_cell()).is_alive,
+
+                    self.cells.get((id - WIDTH + 1) as usize).unwrap_or(&Cell::dead_cell()).is_alive,
+
+                    self.cells.get((id - 1) as usize).unwrap_or(&Cell::dead_cell()).is_alive,
+
+                    self.cells.get((id + 1) as usize).unwrap_or(&Cell::dead_cell()).is_alive,
+
+                    self.cells.get((id + WIDTH - 1) as usize).unwrap_or(&Cell::dead_cell()).is_alive,
+
+                    self.cells.get((id + WIDTH) as usize).unwrap_or(&Cell::dead_cell()).is_alive,
+
+                    self.cells.get((id + WIDTH + 1) as usize).unwrap_or(&Cell::dead_cell()).is_alive,
+                ];
+
+                let next_state = cell.process_next_state(neighbours_cell);
+            }
+        }
+        
+        old_state
+            .iter_mut()
+            .for_each(|c| c.process_next_state(neighbours));
+
+        self.cells = new_state;
     }
 }
 
@@ -99,7 +140,7 @@ fn main() -> Result<(), Error> {
 
     // Set clear color to red.
     pixels.clear_color(Color::BLACK);
-    
+
     event_loop.run(move |event, _, control_flow| {
         // Clear the pixel buffer
         let frame = pixels.frame_mut();
