@@ -1,31 +1,22 @@
 use pixels::{wgpu::Color, Error, Pixels, SurfaceTexture};
-use winit::{dpi::LogicalSize, event_loop::EventLoop, window::WindowBuilder};
+use winit::{dpi::LogicalSize, event_loop::EventLoop, window::WindowBuilder, event::Event};
 use winit_input_helper::WinitInputHelper;
 
-const WIDTH: i32 = 500;
+const WIDTH: i32 = 400;
 const HEIGHT: i32 = 300;
 const SCALE_FACTOR: f64 = 3.0;
-const HEAT_MAP_COLOR_SCHEME: [[u8; 4]; 7] = [
-    [0x10, 0x10, 0x10, 0xff],
-    [0, 0, 0xff, 0xff],
-    [0, 0xff, 0xff, 0xff],
-    [0, 0xff, 0, 0xff],
-    [0xff, 0xff, 0, 0xff],
-    [0xff, 0, 0, 0xff],
-    [0xff, 0xff, 0xff, 0xff],
-];
 
 #[derive(Clone, Debug)]
 struct Cell {
     pub is_alive: bool,
-    pub number_of_neighbours: u8,
+    pub heat: u8,
 }
 
 impl Cell {
     fn dead_cell() -> Self {
         Self {
             is_alive: false,
-            number_of_neighbours: 0,
+            heat: 0,
         }
     }
 
@@ -41,7 +32,13 @@ impl Cell {
 
         Self {
             is_alive: is_alive_next,
-            number_of_neighbours: n_count as u8,
+            // if the cell is alive, its heat is 255,
+            // otherwise it decays from 1
+            heat: if is_alive_next {
+                255
+            } else {
+                self.heat.saturating_sub(1)
+            }
         }
     }
 }
@@ -59,7 +56,7 @@ impl Grid {
         let cells: Vec<Cell> = (0..(HEIGHT as usize * WIDTH as usize))
             .map(|_| Cell {
                 is_alive: randomize::f32_half_open_right(rng.next_u32()) > 0.90,
-                number_of_neighbours: 7,
+                heat: 0,
             })
             .collect();
 
@@ -74,9 +71,9 @@ impl Grid {
     fn draw_cell(&mut self, frame: &mut [u8]) {
         for (cell, pixel) in self.cells.iter().zip(frame.chunks_exact_mut(4)) {
             let color = if cell.is_alive {
-                HEAT_MAP_COLOR_SCHEME[(cell.number_of_neighbours - 1) as usize]
+                [0, 0xff, 0xff, 0xff]
             } else {
-                [0, 0, 0, 0] // Black
+                [0, 0, cell.heat, 0xff]
             };
 
             pixel.copy_from_slice(&color);
@@ -162,19 +159,17 @@ fn main() -> Result<(), Error> {
     // Create a grid full of ded cells
     let mut grid = Grid::get_randomized_grid();
 
-    // Set clear color to red.
-    pixels.clear_color(Color::BLACK);
+    event_loop.run(move |event, _, _| {
+        if let Event::RedrawRequested(_) = event {
+            let frame = pixels.frame_mut();
+            grid.draw_cell(frame);
+            
+            // Draw it to the `SurfaceTexture`
+            pixels.render().unwrap(); // todo handle error
+        }
 
-    event_loop.run(move |event, _, control_flow| {
-        // Clear the pixel buffer
-        let frame = pixels.frame_mut();
-
-        grid.draw_cell(frame);
-
-        // Draw it to the `SurfaceTexture`
-        pixels.render().unwrap(); // todo handle error
-        window.request_redraw();
-
+        
         grid.update_cells();
+        window.request_redraw();
     });
 }
