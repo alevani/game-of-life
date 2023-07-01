@@ -2,10 +2,11 @@ use pixels::{wgpu::Color, Error, Pixels, SurfaceTexture};
 use winit::{dpi::LogicalSize, event_loop::EventLoop, window::WindowBuilder};
 use winit_input_helper::WinitInputHelper;
 
-const WIDTH: u32 = 400;
-const HEIGHT: u32 = 300;
+const WIDTH: i32 = 400;
+const HEIGHT: i32 = 300;
 const SCALE_FACTOR: f64 = 10.0;
 
+#[derive(Clone, Debug)]
 struct Cell {
     pub is_alive: bool,
 }
@@ -15,13 +16,16 @@ impl Cell {
         self.is_alive = is_alive;
     }
 
-    fn dead_cell() -> Cell {
-        Cell {
-            is_alive: false
-        }
+    // Leveraging Rust's powerfull Options
+    // by assuming that if the .get() on a Grid
+    // is None, then we are out of bound.
+    // This can be represented by a neighbouring dead
+    // cell.
+    fn dead_cell() -> Self {
+        Self { is_alive: false }
     }
 
-    fn process_next_state(&mut self, neighbours: [bool; 8]) {
+    fn process_next_state(&self, neighbours: [bool; 8]) -> Self {
         let n_count = neighbours.into_iter().filter(|b| *b).count();
         let is_alive_next = match self.is_alive {
             // If the cell is alive, then it stays alive if it has either 2 or 3 live neighbors
@@ -31,16 +35,21 @@ impl Cell {
             false => n_count == 3,
         };
 
-        self.set_is_alive(is_alive_next);
+        Self {
+            is_alive: is_alive_next,
+        }
     }
 }
 
+
+#[derive(Clone, Debug)]
 struct Grid {
     pub cells: Vec<Cell>,
+    pub next_step_cells: Vec<Cell>,
 }
 
 impl Grid {
-    fn get_randomized_grid() -> Grid {
+    fn get_randomized_grid() -> Self {
         let mut rng: randomize::PCG32 = (1_u64, 1_u64).into();
 
         let cells: Vec<Cell> = (0..(HEIGHT as usize * WIDTH as usize))
@@ -49,7 +58,13 @@ impl Grid {
             })
             .collect();
 
-        Grid { cells }
+            
+        let next_step_cells: Vec<Cell> = vec![Cell::dead_cell(); HEIGHT as usize * WIDTH as usize];
+
+        Self {
+            cells,
+            next_step_cells,
+        }
     }
 
     fn draw_cell(&mut self, frame: &mut [u8]) {
@@ -70,43 +85,54 @@ impl Grid {
     // 3 XXXXXX
     //XXXXXX XXXXOX XXXXXX
     fn update_cells(&mut self) {
-        let old_state = self.cells;
-
-        for x in 0..HEIGHT {
-            for y in 0..WIDTH {
-                // cell is in position (x + 1) * (y + 1) + 1
-                let id = (x + 1) * (y + 1) + 1;
-                let cell = self.cells[id as usize];
+        for x in 0..HEIGHT - 1 {
+            for y in 0..WIDTH -1  {
+                // cell is in position (x + 1) * (y + 1)
+                let id = (x + 1) * (y + 1);
+                let cell = &self.cells[id as usize];
 
                 // calculate neighbours of that cell
                 let neighbours_cell: [bool; 8] = [
                     // From top-left to bottom-right
-                    self.cells.get((id - WIDTH - 1) as usize).unwrap_or(&Cell::dead_cell()).is_alive,
-
-                    self.cells.get((id - WIDTH) as usize).unwrap_or(&Cell::dead_cell()).is_alive,
-
-                    self.cells.get((id - WIDTH + 1) as usize).unwrap_or(&Cell::dead_cell()).is_alive,
-
-                    self.cells.get((id - 1) as usize).unwrap_or(&Cell::dead_cell()).is_alive,
-
-                    self.cells.get((id + 1) as usize).unwrap_or(&Cell::dead_cell()).is_alive,
-
-                    self.cells.get((id + WIDTH - 1) as usize).unwrap_or(&Cell::dead_cell()).is_alive,
-
-                    self.cells.get((id + WIDTH) as usize).unwrap_or(&Cell::dead_cell()).is_alive,
-
-                    self.cells.get((id + WIDTH + 1) as usize).unwrap_or(&Cell::dead_cell()).is_alive,
+                    self.cells
+                        .get((id - WIDTH - 1) as usize)
+                        .unwrap_or(&Cell::dead_cell())
+                        .is_alive,
+                    self.cells
+                        .get((id - WIDTH) as usize)
+                        .unwrap_or(&Cell::dead_cell())
+                        .is_alive,
+                    self.cells
+                        .get((id - WIDTH + 1) as usize)
+                        .unwrap_or(&Cell::dead_cell())
+                        .is_alive,
+                    self.cells
+                        .get((id - 1) as usize)
+                        .unwrap_or(&Cell::dead_cell())
+                        .is_alive,
+                    self.cells
+                        .get((id + 1) as usize)
+                        .unwrap_or(&Cell::dead_cell())
+                        .is_alive,
+                    self.cells
+                        .get((id + WIDTH - 1) as usize)
+                        .unwrap_or(&Cell::dead_cell())
+                        .is_alive,
+                    self.cells
+                        .get((id + WIDTH) as usize)
+                        .unwrap_or(&Cell::dead_cell())
+                        .is_alive,
+                    self.cells
+                        .get((id + WIDTH + 1) as usize)
+                        .unwrap_or(&Cell::dead_cell())
+                        .is_alive,
                 ];
 
                 let next_state = cell.process_next_state(neighbours_cell);
+                self.next_step_cells[id as usize] = next_state;
             }
         }
-        
-        old_state
-            .iter_mut()
-            .for_each(|c| c.process_next_state(neighbours));
-
-        self.cells = new_state;
+        std::mem::swap(&mut self.next_step_cells, &mut self.cells);
     }
 }
 
@@ -132,7 +158,7 @@ fn main() -> Result<(), Error> {
     let mut pixels = {
         let window_size = window.inner_size();
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        Pixels::new(WIDTH, HEIGHT, surface_texture)?
+        Pixels::new(WIDTH as u32, HEIGHT as u32, surface_texture)?
     };
 
     // Create a grid full of ded cells
