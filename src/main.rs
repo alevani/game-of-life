@@ -5,15 +5,28 @@ use winit_input_helper::WinitInputHelper;
 const WIDTH: i32 = 500;
 const HEIGHT: i32 = 300;
 const SCALE_FACTOR: f64 = 3.0;
+const HEAT_MAP_COLOR_SCHEME: [[u8; 4]; 7] = [
+    [0x10, 0x10, 0x10, 0xff],
+    [0, 0, 0xff, 0xff],
+    [0, 0xff, 0xff, 0xff],
+    [0, 0xff, 0, 0xff],
+    [0xff, 0xff, 0, 0xff],
+    [0xff, 0, 0, 0xff],
+    [0xff, 0xff, 0xff, 0xff],
+];
 
 #[derive(Clone, Debug)]
 struct Cell {
     pub is_alive: bool,
+    pub number_of_neighbours: u8,
 }
 
 impl Cell {
     fn dead_cell() -> Self {
-        Self { is_alive: false }
+        Self {
+            is_alive: false,
+            number_of_neighbours: 0,
+        }
     }
 
     fn process_next_state(&self, neighbours: [bool; 8]) -> Self {
@@ -28,6 +41,7 @@ impl Cell {
 
         Self {
             is_alive: is_alive_next,
+            number_of_neighbours: n_count as u8,
         }
     }
 }
@@ -44,7 +58,8 @@ impl Grid {
 
         let cells: Vec<Cell> = (0..(HEIGHT as usize * WIDTH as usize))
             .map(|_| Cell {
-                is_alive: randomize::f32_half_open_right(rng.next_u32()) > 0.9,
+                is_alive: randomize::f32_half_open_right(rng.next_u32()) > 0.90,
+                number_of_neighbours: 7,
             })
             .collect();
 
@@ -59,7 +74,7 @@ impl Grid {
     fn draw_cell(&mut self, frame: &mut [u8]) {
         for (cell, pixel) in self.cells.iter().zip(frame.chunks_exact_mut(4)) {
             let color = if cell.is_alive {
-                [0xff, 0xff, 0xff, 0xff] // White
+                HEAT_MAP_COLOR_SCHEME[(cell.number_of_neighbours - 1) as usize]
             } else {
                 [0, 0, 0, 0] // Black
             };
@@ -68,11 +83,6 @@ impl Grid {
         }
     }
 
-    // X 123456
-    // 1 XXXXXX
-    // 2 XXXXOX
-    // 3 XXXXXX
-    //XXXXXX XXXXOX XXXXXX
     fn update_cells(&mut self) {
         for x in 0..WIDTH {
             for y in 0..HEIGHT {
