@@ -2,7 +2,7 @@ use pixels::{wgpu::Color, Error, Pixels, SurfaceTexture};
 use winit::{dpi::LogicalSize, event_loop::EventLoop, window::WindowBuilder};
 use winit_input_helper::WinitInputHelper;
 
-const WIDTH: i32 = 400;
+const WIDTH: i32 = 500;
 const HEIGHT: i32 = 300;
 const SCALE_FACTOR: f64 = 10.0;
 
@@ -12,15 +12,14 @@ struct Cell {
 }
 
 impl Cell {
-    fn set_is_alive(&mut self, is_alive: bool) {
-        self.is_alive = is_alive;
-    }
-
     // Leveraging Rust's powerfull Options
     // by assuming that if the .get() on a Grid
     // is None, then we are out of bound.
     // This can be represented by a neighbouring dead
     // cell.
+    // Although probably memory heavy, since we are
+    // creating an instance each time..
+    // todo make proper rule check
     fn dead_cell() -> Self {
         Self { is_alive: false }
     }
@@ -85,10 +84,9 @@ impl Grid {
     // 3 XXXXXX
     //XXXXXX XXXXOX XXXXXX
     fn update_cells(&mut self) {
-        for x in 0..HEIGHT - 1 {
-            for y in 0..WIDTH -1  {
-                // cell is in position (x + 1) * (y + 1)
-                let id = (x + 1) * (y + 1);
+        for x in 0..WIDTH {
+            for y in 0..HEIGHT {
+                let id = x + y * WIDTH;
                 let cell = &self.cells[id as usize];
 
                 // calculate neighbours of that cell
@@ -172,10 +170,12 @@ fn main() -> Result<(), Error> {
         let frame = pixels.frame_mut();
 
         grid.draw_cell(frame);
-        grid.update_cells();
 
         // Draw it to the `SurfaceTexture`
         pixels.render().unwrap(); // todo handle error
         window.request_redraw();
+
+        grid.update_cells();
+
     });
 }
