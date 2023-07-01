@@ -4,7 +4,7 @@ use winit_input_helper::WinitInputHelper;
 
 const WIDTH: i32 = 500;
 const HEIGHT: i32 = 300;
-const SCALE_FACTOR: f64 = 10.0;
+const SCALE_FACTOR: f64 = 3.0;
 
 #[derive(Clone, Debug)]
 struct Cell {
@@ -12,14 +12,6 @@ struct Cell {
 }
 
 impl Cell {
-    // Leveraging Rust's powerfull Options
-    // by assuming that if the .get() on a Grid
-    // is None, then we are out of bound.
-    // This can be represented by a neighbouring dead
-    // cell.
-    // Although probably memory heavy, since we are
-    // creating an instance each time..
-    // todo make proper rule check
     fn dead_cell() -> Self {
         Self { is_alive: false }
     }
@@ -40,7 +32,6 @@ impl Cell {
     }
 }
 
-
 #[derive(Clone, Debug)]
 struct Grid {
     pub cells: Vec<Cell>,
@@ -57,7 +48,6 @@ impl Grid {
             })
             .collect();
 
-            
         let next_step_cells: Vec<Cell> = vec![Cell::dead_cell(); HEIGHT as usize * WIDTH as usize];
 
         Self {
@@ -94,36 +84,36 @@ impl Grid {
                     // From top-left to bottom-right
                     self.cells
                         .get((id - WIDTH - 1) as usize)
-                        .unwrap_or(&Cell::dead_cell())
-                        .is_alive,
+                        .map(|c| c.is_alive)
+                        .unwrap_or(false),
                     self.cells
                         .get((id - WIDTH) as usize)
-                        .unwrap_or(&Cell::dead_cell())
-                        .is_alive,
+                        .map(|c| c.is_alive)
+                        .unwrap_or(false),
                     self.cells
                         .get((id - WIDTH + 1) as usize)
-                        .unwrap_or(&Cell::dead_cell())
-                        .is_alive,
+                        .map(|c| c.is_alive)
+                        .unwrap_or(false),
                     self.cells
                         .get((id - 1) as usize)
-                        .unwrap_or(&Cell::dead_cell())
-                        .is_alive,
+                        .map(|c| c.is_alive)
+                        .unwrap_or(false),
                     self.cells
                         .get((id + 1) as usize)
-                        .unwrap_or(&Cell::dead_cell())
-                        .is_alive,
+                        .map(|c| c.is_alive)
+                        .unwrap_or(false),
                     self.cells
                         .get((id + WIDTH - 1) as usize)
-                        .unwrap_or(&Cell::dead_cell())
-                        .is_alive,
+                        .map(|c| c.is_alive)
+                        .unwrap_or(false),
                     self.cells
                         .get((id + WIDTH) as usize)
-                        .unwrap_or(&Cell::dead_cell())
-                        .is_alive,
+                        .map(|c| c.is_alive)
+                        .unwrap_or(false),
                     self.cells
                         .get((id + WIDTH + 1) as usize)
-                        .unwrap_or(&Cell::dead_cell())
-                        .is_alive,
+                        .map(|c| c.is_alive)
+                        .unwrap_or(false),
                 ];
 
                 let next_state = cell.process_next_state(neighbours_cell);
@@ -176,6 +166,5 @@ fn main() -> Result<(), Error> {
         window.request_redraw();
 
         grid.update_cells();
-
     });
 }
