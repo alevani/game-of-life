@@ -14,6 +14,23 @@ impl Cell {
     fn toggle_state(&mut self) {
         self.is_alive = !self.is_alive;
     }
+
+    fn set_is_alive(&mut self, is_alive: bool) {
+        self.is_alive = is_alive;
+    }
+
+    fn process_next_state(&mut self, neighbours: Vec<bool>) {
+        let n_count = neighbours.into_iter().filter(|b| *b).count();
+        let is_alive_next = match self.is_alive {
+            // If the cell is alive, then it stays alive if it has either 2 or 3 live neighbors
+            true => (2..=3).contains(&n_count),
+
+            // If the cell is dead, then it springs to life only in the case that it has 3 live neighbors
+            false => n_count == 3,   
+        };
+        
+        self.set_is_alive(is_alive_next);
+    }
 }
 
 struct Grid {
@@ -31,6 +48,24 @@ impl Grid {
         Grid {
             cells,
         }
+    }
+
+    fn draw_cell(&mut self, frame: &mut [u8]) {
+        for (cell, pixel) in self.cells.iter().zip(frame.chunks_exact_mut(4)) {
+            let color = if cell.is_alive {
+                [0xff, 0xff, 0xff, 0xff] // White
+            } else {
+                [0, 0, 0, 0] // Black
+            };
+            
+            pixel.copy_from_slice(&color);
+        }
+    }
+
+    fn update_cells(&mut self) {
+        self.cells.iter_mut().for_each(|c| {
+            c.process_next_state(neighbours)
+        })
     }
 }
 
@@ -60,28 +95,20 @@ fn main() -> Result<(), Error> {
     };
 
     // Create a grid full of ded cells
-    let grid = Grid::get_randomized_grid();
+    let mut grid = Grid::get_randomized_grid();
 
     // Set clear color to red.
     pixels.clear_color(Color::BLACK);
     
-    // Clear the pixel buffer
-    let frame = pixels.frame_mut();
+    event_loop.run(move |event, _, control_flow| {
+        // Clear the pixel buffer
+        let frame = pixels.frame_mut();
 
-    for (cell, pixel) in grid.cells.iter().zip(frame.chunks_exact_mut(4)) {
-        let color = if cell.is_alive {
-            [0xff, 0xff, 0xff, 0xff] // White
-        } else {
-            [0, 0, 0, 0] // Black
-        };
-        
-        pixel.copy_from_slice(&color);
-    }
-    
+        grid.draw_cell(frame);
+        grid.update_cells();
 
-    // Draw it to the `SurfaceTexture`
-    pixels.render()?;
-    window.request_redraw();
-
-    event_loop.run(move |event, _, control_flow| {});
+        // Draw it to the `SurfaceTexture`
+        pixels.render().unwrap(); // todo handle error
+        window.request_redraw();
+    });
 }
